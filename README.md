@@ -13,6 +13,9 @@ populates the graph, while the symbolic core verifies and decides) and
 > It reasons over explicit assertions, makes its contradictions visible,
 > **suspends** judgment according to clear criteria, and **traces** every
 > conclusion it reaches.
+>
+> It is **not a post-hoc filter** on AI outputs: it is a verification kernel
+> with **suspension as a first-class, typed outcome**.
 
 ## Architecture at a glance
 
