@@ -1,17 +1,18 @@
 Corexiom
-Copyright 2026 Karim Benrezzag <Karim.benrezzag@corexiom.com>
+Copyright 2026 Karim Benrezzag [Karim.benrezzag@corexiom.com](mailto:Karim.benrezzag@corexiom.com)
 
-Ce produit inclut des logiciels développés par Karim Benrezzag dans le cadre
-du projet Corexiom.
+This product includes software developed by Karim Benrezzag as part of the
+Corexiom project.
 
-Distribué sous licence Apache 2.0. Voir le fichier LICENSE pour les termes
-complets.
+Distributed under the Apache 2.0 License. See the LICENSE file for the full
+terms.
 
-----------------------------------------------------------------------
+---
 
-Dépendances de développement (chacune sous sa propre licence) :
-  - pytest      (MIT)
-  - hypothesis  (MPL-2.0)
+Development dependencies (each distributed under its own license):
 
-Le langage Python et sa bibliothèque standard restent la propriété de
-leurs auteurs respectifs.
+* pytest      (MIT)
+* hypothesis  (MPL-2.0)
+
+The Python programming language and its standard library remain the property of
+their respective authors.

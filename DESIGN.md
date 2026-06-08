@@ -3,186 +3,177 @@ Copyright 2026 Karim Benrezzag <Karim.benrezzag@corexiom.com>
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Corexiom v2 — Conception du noyau
+# Corexiom v2 — Core Design
 
-Refonte du noyau de raisonnement selon deux principes : **hybrider** (le
-neuronal peuple, le symbolique vérifie) et **fonder** (remplacer les
-heuristiques par une sémantique définie, avec des garanties explicites).
+A redesign of the reasoning core based on two principles: **hybridize** (the
+neural side populates, the symbolic side verifies) and **ground** (replace
+heuristics with a defined semantics and explicit guarantees).
 
-Ce document distingue scrupuleusement ce qui est **prouvé par construction**,
-ce qui est **garanti**, et ce qui est seulement **validé empiriquement**. C'est
-le cœur de l'honnêteté du projet : on ne revendique pas une solidité qu'on n'a
-pas démontrée.
+This document scrupulously distinguishes what is **proven by construction**,
+what is **guaranteed**, and what is only **empirically validated**. This is
+the heart of the project's honesty: we do not claim a soundness we have not
+demonstrated.
 
 ---
 
-## 1. Modèle
+## 1. Model
 
-Le monde est un ensemble d'**assertions** atomiques, chacune portant un *degré
-de croyance* `bel ∈ [0, 1]`. On distingue deux statuts :
+The world is a set of atomic **assertions**, each carrying a *degree of belief*
+`bel ∈ [0, 1]`. Two statuses are distinguished:
 
-- **Axiome** (`Status.AXIOM`) : croyance verrouillée à `1.0`, **inviolable**.
-  C'est une contrainte dure. Le violer = incohérence dure (prouvable).
-- **Croyance** (`Status.BELIEF`) : degré révisable dans `[0, 1]`, partant d'un
-  *a priori* `prior`.
+- **Axiom** (`Status.AXIOM`): belief locked at `1.0`, **inviolable**.
+  A hard constraint. Violating it = hard incoherence (provable).
+- **Belief** (`Status.BELIEF`): revisable degree in `[0, 1]`, starting from a
+  *prior* `prior`.
 
-Les assertions sont reliées par des **liens** typés (`Relation`) :
+Assertions are connected by typed **links** (`Relation`):
 
-| Relation | Sémantique | Effet sur la propagation |
+| Relation | Semantics | Effect on propagation |
 |---|---|---|
-| `IMPLIES(a→b, w)` | si `a` alors `b` | augmente la cible de `b` |
-| `SUPPORTS(a→b, w)` | `a` est une évidence pour `b` | augmente la cible de `b` (plus faible) |
-| `CONTRADICTS(a,b,w)` | `a` et `b` ne peuvent être vrais ensemble | diminue la cible de chacun ; conflit |
+| `IMPLIES(a→b, w)` | if `a` then `b` | raises the target of `b` |
+| `SUPPORTS(a→b, w)` | `a` is evidence for `b` | raises the target of `b` (more weakly) |
+| `CONTRADICTS(a,b,w)` | `a` and `b` cannot both be true | lowers the target of each; conflict |
 
-`CONTRADICTS` est symétrique (enregistré dans les deux sens).
+`CONTRADICTS` is symmetric (registered in both directions).
 
-Toute conclusion du moteur s'accompagne d'une **justification** (`Justification`)
-listant les assertions et liens qui la fondent : c'est l'explicabilité native.
+Every conclusion produced by the engine carries a **justification**
+(`Justification`) listing the assertions and links that ground it: this is
+native explainability.
 
 ---
 
-## 2. Sémantique de la propagation
+## 2. Propagation semantics
 
-Soit `bel_k` l'état (vecteur des croyances) à l'itération `k`. Pour chaque
-assertion non-axiome `a` de prior `p_a` :
-
-```
-support(a)  = Σ  bel_k[s] · w      sur les liens (s → a) de type IMPLIES ou SUPPORTS
-conflict(a) = Σ  bel_k[c] · w      sur les liens (c — a) de type CONTRADICTS
+Let `bel_k` be the state (belief vector) at iteration `k`. For each non-axiom
+assertion `a` with prior `p_a`:
+support(a)  = Σ  bel_k[s] · w      over links (s → a) of type IMPLIES or SUPPORTS
+conflict(a) = Σ  bel_k[c] · w      over links (c — a) of type CONTRADICTS
 target(a)   = clamp( p_a + G⁺·support(a) − G⁻·conflict(a) , 0, 1 )
-bel_{k+1}[a] = (1 − λ)·bel_k[a] + λ·target(a)          avec λ ∈ (0, 1]
-```
+bel_{k+1}[a] = (1 − λ)·bel_k[a] + λ·target(a)          with λ ∈ (0, 1]
 
-Pour les axiomes : `bel_{k+1} = bel_k = 1.0`.
+For axioms: `bel_{k+1} = bel_k = 1.0`.
 
-**Paramètres de la dynamique** (fixés au constructeur de `ReasoningEngine`,
-tous configurables, valeurs par défaut sûres et amorties) :
+**Dynamics parameters** (set in the `ReasoningEngine` constructor, all
+configurable, with safe and damped defaults):
 
-| Paramètre | Symbole | Défaut | Rôle |
+| Parameter | Symbol | Default | Role |
 |---|---|---|---|
-| `gain_support`  | G⁺ | `0.6`   | poids des évidences (`IMPLIES`/`SUPPORTS`) sur la cible |
-| `gain_conflict` | G⁻ | `0.8`   | poids des contradictions (`CONTRADICTS`) sur la cible |
-| `relax`         | λ  | `0.5`   | amortissement de la mise à jour, dans `(0, 1]` |
-| `epsilon`       | ε  | `1e-9`  | seuil de détection du point fixe |
-| `max_iters`     | —  | `1000`  | plafond d'itérations (terminaison) |
+| `gain_support`  | G⁺ | `0.6`   | weight of evidence (`IMPLIES`/`SUPPORTS`) on the target |
+| `gain_conflict` | G⁻ | `0.8`   | weight of contradictions (`CONTRADICTS`) on the target |
+| `relax`         | λ  | `0.5`   | damping of the update, in `(0, 1]` |
+| `epsilon`       | ε  | `1e-9`  | fixed-point detection threshold |
+| `max_iters`     | —  | `1000`  | iteration cap (termination) |
 
-Le choix `G⁻ > G⁺` (0.8 > 0.6) est **délibéré** : le moteur pèse davantage le
-conflit que le soutien. C'est une **prudence par conception** — face au doute, il
-dégrade une croyance plutôt que de la gonfler. C'est la traduction numérique du
-principe « suspendre plutôt qu'halluciner ». Le ratio G⁻/G⁺ règle la
-« personnalité » du moteur (plus prudent si on l'augmente).
+Choosing `G⁻ > G⁺` (0.8 > 0.6) is **deliberate**: the engine weights conflict
+more heavily than support. This is **prudence by design** — when in doubt,
+it downgrades a belief rather than inflating it. This is the numerical
+translation of the principle *"suspend rather than hallucinate"*. The G⁻/G⁺
+ratio tunes the engine's temperament (more cautious as it grows).
 
-**Mise à jour synchrone (Jacobi)** : toutes les cibles sont calculées à partir
-du **même** instantané `bel_k`. C'est ce qui donne l'indépendance à l'ordre.
+**Synchronous update (Jacobi)**: all targets are computed from the *same*
+snapshot `bel_k`. This is what yields order independence.
 
-On itère jusqu'à `max_k |bel_{k+1} − bel_k| < ε` (point fixe atteint) ou jusqu'à
-`max_iters` (terminaison garantie).
+We iterate until `max_k |bel_{k+1} − bel_k| < ε` (fixed point reached) or
+until `max_iters` (guaranteed termination).
 
-### Garanties
+### Guarantees
 
-| Propriété | Statut | Justification |
+| Property | Status | Justification |
 |---|---|---|
-| **Bornes** `bel ∈ [0,1]` | ✅ prouvé | `clamp` à chaque étape ; init dans `[0,1]` |
-| **Préservation des axiomes** | ✅ prouvé | les axiomes ne sont jamais mis à jour |
-| **Déterminisme** | ✅ prouvé | aucune source d'aléa |
-| **Indépendance à l'ordre** | ✅ prouvé | mise à jour synchrone depuis `bel_k` |
-| **Terminaison** | ✅ garanti | plafond `max_iters` |
-| **Convergence vers un point fixe** | 🔬 validé | relaxation `λ<1` (amortissement) ; vérifié sur des milliers de graphes générés aléatoirement (tests de propriété) |
+| **Bounds** `bel ∈ [0,1]` | ✅ proven | `clamp` at every step; initialisation in `[0,1]` |
+| **Axiom preservation** | ✅ proven | axioms are never updated |
+| **Determinism** | ✅ proven | no source of randomness |
+| **Order independence** | ✅ proven | synchronous update from `bel_k` |
+| **Termination** | ✅ guaranteed | `max_iters` cap |
+| **Convergence to a fixed point** | 🔬 validated | relaxation `λ<1` (damping); verified on thousands of randomly generated graphs (property-based tests) |
 
-> Honnêteté : nous **ne revendiquons pas** une preuve analytique de convergence
-> universelle pour tout graphe. Nous garantissons la *terminaison* et démontrons
-> *empiriquement* (property-based testing) qu'à l'arrêt, l'état est un
-> quasi-point-fixe (réappliquer l'opérateur le déplace de moins de `ε`).
+> Honest disclaimer: we do **not** claim an analytical proof of universal
+> convergence for every graph. We guarantee *termination* and demonstrate
+> *empirically* (property-based testing) that at halt, the state is a
+> quasi-fixed point (reapplying the operator moves it by less than `ε`).
 
-> **Régime de convergence (mesuré).** La convergence n'est observée de façon
-> fiable qu'en **régime amorti** (λ ≲ 0.5, le défaut). À λ ≥ 0.8, sur des graphes
-> à contradictions fortes, l'opérateur peut **osciller** et atteindre le plafond
-> `max_iters` sans point fixe — **sans jamais violer la terminaison ni les bornes
-> `[0, 1]`**. Autrement dit : l'amortissement est ce qui *achète* la convergence.
-> La borne supérieure `λ = 1` reste autorisée mais déconseillée pour cette raison.
+> **Convergence regime (measured).** Convergence is observed reliably only
+> in the **damped regime** (λ ≲ 0.5, the default). At λ ≥ 0.8, on graphs
+> with strong contradictions, the operator may **oscillate** and reach the
+> `max_iters` cap without a fixed point — **without ever violating termination
+> or the `[0, 1]` bounds**. In other words: damping is what *buys* convergence.
+> The upper bound `λ = 1` is still permitted but discouraged for this reason.
 
 ---
 
-## 3. Cohérence
+## 3. Coherence
 
-- **Cohérence dure** (`bool`) — décidable exactement. `False` s'il existe un lien
-  `CONTRADICTS` entre **deux axiomes** : deux propositions inviolables et
-  mutuellement exclusives ne peuvent coexister. La preuve est l'paire d'axiomes
-  et le lien.
-- **Score de cohérence molle** ∈ `[0,1]` :
-
-```
-conflict_mass = Σ  bel[a]·bel[b]·w   sur les liens CONTRADICTS (comptés une fois)
+- **Hard coherence** (`bool`) — exactly decidable. `False` if there exists a
+  `CONTRADICTS` link between **two axioms**: two inviolable, mutually exclusive
+  propositions cannot coexist. The proof is the pair of axioms and the link.
+- **Soft coherence score** ∈ `[0,1]`:
+conflict_mass = Σ  bel[a]·bel[b]·w   over CONTRADICTS links (counted once)
 coherence     = 1 − clamp( conflict_mass / Σw , 0, 1 )
-```
 
-Borné par construction : `0 ≤ coherence ≤ 1` (prouvé).
-
----
-
-## 4. Décision et suspension (fondées)
-
-`decide(threshold θ, margin δ)` choisit l'assertion **actionnable** de plus
-haute croyance `≥ θ`, sauf suspension. Règles de suspension, dans l'ordre,
-chacune renvoyant une justification :
-
-- **S1 — `AXIOM_CONFLICT`** : incohérence dure détectée. On ne décide pas sur un
-  socle contradictoire.
-- **S2 — `VIOLATES_AXIOM`** : une action en `CONTRADICTS` direct avec un axiome
-  est **structurellement écartée** des candidates (la retenir violerait une
-  contrainte inviolable). Ce verdict n'est rendu que s'il **ne reste aucune
-  action autorisée viable** *et* qu'une action sérieuse (a priori `≥ θ`) a été
-  ainsi écartée : s'il existe une option permise au-dessus du seuil, le moteur
-  la préfère (cf. `test_allowed_preferred_over_forbidden`).
-- **S3 — `AMBIGUOUS`** : `bel(top₁) − bel(top₂) < δ`. Le système ne tranche pas
-  un quasi-ex æquo : il suspend plutôt que d'inventer une préférence.
-- Sinon **`DECIDED`** : `top₁`, avec sa justification (chaîne de support).
-- Aucune candidate `≥ θ` → **`INSUFFICIENT_BELIEF`** (pas de décision forcée).
-
-> **Préséance réelle.** L'exclusion d'une action interdite est un *fait
-> structurel*, appliqué **avant** le choix parmi les candidates : une action
-> contredisant un axiome n'est jamais retenue, quelle que soit sa croyance. La
-> hiérarchie effective est donc : `AXIOM_CONFLICT` (socle) → exclusion des
-> actions interdites → `AMBIGUOUS`/`DECIDED` parmi les autorisées →
-> `VIOLATES_AXIOM` (si une action sérieuse a été écartée et qu'il ne reste rien
-> d'autorisé) → `INSUFFICIENT_BELIEF`.
-
-> **Indépendance au poids.** L'interdiction dépend de l'**existence** d'un lien
-> `CONTRADICTS` vers un axiome, **pas de son poids** : même un poids minime
-> interdit l'action. Le poids d'un lien `CONTRADICTS` n'agit que sur la
-> propagation (§2) et le score de cohérence molle (§3) ; face à un axiome, la
-> contrainte est *dure*, donc binaire.
-
-C'est la matérialisation du principe fondateur : *suspendre plutôt
-qu'halluciner*, mais sur des critères explicites et traçables.
+Bounded by construction: `0 ≤ coherence ≤ 1` (proven).
 
 ---
 
-## 5. Hybridation : perception enfichable
+## 4. Decision and suspension (grounded)
 
-```
-Perceiver (protocole)
- ├─ RuleBasedPerceiver   — extraction par motifs (par défaut, sans dépendance)
- └─ LLMPerceiver         — interface pour un modèle neuronal (peuple le graphe)
-```
+`decide(threshold θ, margin δ)` selects the **actionable** assertion with the
+highest belief `≥ θ`, unless suspended. Suspension rules, in order, each
+returning a justification:
 
-Le moteur ne dépend **pas** de la façon dont les assertions sont produites. Un
-LLM peut transformer du langage naturel en assertions structurées (le neuronal
-*propose*) ; le moteur les *vérifie*, détecte les contradictions, et suspend si
-besoin (le symbolique *contraint*). Le neuronal n'a jamais le dernier mot sur la
-cohérence.
+- **S1 — `AXIOM_CONFLICT`**: hard incoherence detected. We do not decide on
+  a contradictory foundation.
+- **S2 — `VIOLATES_AXIOM`**: an action in direct `CONTRADICTS` with an axiom
+  is **structurally excluded** from the candidates (keeping it would violate
+  an inviolable constraint). This verdict is only returned if **no permitted
+  action remains viable** *and* a serious action (prior `≥ θ`) was excluded
+  this way: if a permitted option exists above the threshold, the engine
+  prefers it (cf. `test_allowed_preferred_over_forbidden`).
+- **S3 — `AMBIGUOUS`**: `bel(top₁) − bel(top₂) < δ`. The system does not
+  break a near-tie: it suspends rather than fabricating a preference.
+- Otherwise **`DECIDED`**: `top₁`, with its justification (support chain).
+- No candidate `≥ θ` → **`INSUFFICIENT_BELIEF`** (no forced decision).
+
+> **Actual precedence.** Excluding a forbidden action is a *structural fact*,
+> applied **before** choosing among candidates: an action contradicting an
+> axiom is never selected, regardless of its belief. The effective hierarchy
+> is therefore: `AXIOM_CONFLICT` (foundation) → exclusion of forbidden
+> actions → `AMBIGUOUS`/`DECIDED` among permitted ones → `VIOLATES_AXIOM`
+> (if a serious action was excluded and nothing permitted remains) →
+> `INSUFFICIENT_BELIEF`.
+
+> **Weight independence.** The prohibition depends on the *existence* of a
+> `CONTRADICTS` link to an axiom, **not on its weight**: even a minimal
+> weight forbids the action. The weight of a `CONTRADICTS` link only acts on
+> propagation (§2) and the soft coherence score (§3); against an axiom, the
+> constraint is *hard*, hence binary.
+
+This is the embodiment of the founding principle: *suspend rather than
+hallucinate*, but on explicit and traceable criteria.
 
 ---
 
-## 6. Ce que ce noyau n'est pas (honnêteté)
+## 5. Hybridization: pluggable perception
+Perceiver (protocol)
+├─ RuleBasedPerceiver   — pattern-based extraction (default, no dependencies)
+└─ LLMPerceiver         — interface for a neural model (populates the graph)
 
-- Ce n'est **pas** une IA généraliste ni un substitut aux modèles de langage. Le
-  `RuleBasedPerceiver` reste un parseur simple ; le grounding sérieux passe par
-  un `LLMPerceiver`. Le noyau est une **couche de raisonnement et de garde-fou**.
-- La sémantique de propagation est fondée et stable, mais ce n'est pas un
-  prouveur logique complet (SAT/SMT) ni une inférence bayésienne exacte. C'est un
-  choix assumé : un opérateur simple, prévisible et vérifiable, sur lequel des
-  couches plus formelles pourront se greffer.
-- « Solide » signifie ici : propriétés prouvées là où elles peuvent l'être,
-  validées agressivement ailleurs (tests de propriété + adversariaux), zéro état
-  caché, tout traçable. Pas « incassable » — cette notion n'existe pas.
+The engine does **not** depend on how assertions are produced. An LLM can
+turn natural language into structured assertions (the neural side *proposes*);
+the engine *verifies* them, detects contradictions, and suspends if needed
+(the symbolic side *constrains*). The neural component never has the final
+say on coherence.
+
+---
+
+## 6. What this core is not (honest disclaimer)
+
+- This is **not** a general-purpose AI nor a substitute for language models.
+  The `RuleBasedPerceiver` remains a simple parser; serious grounding goes
+  through an `LLMPerceiver`. The core is a **reasoning and safeguard layer**.
+- The propagation semantics is grounded and stable, but it is not a complete
+  logical prover (SAT/SMT) nor exact Bayesian inference. This is a deliberate
+  choice: a simple, predictable, verifiable operator on top of which more
+  formal layers can be grafted.
+- "Sound" here means: properties proven where they can be, aggressively
+  validated elsewhere (property-based + adversarial tests), no hidden state,
+  fully traceable. Not "unbreakable" — such a notion does not exist.
