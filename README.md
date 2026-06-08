@@ -3,11 +3,6 @@ Copyright 2026 Karim Benrezzag <Karim.benrezzag@corexiom.com>
 SPDX-License-Identifier: Apache-2.0
 -->
 
-<!--
-Copyright 2026 Karim Benrezzag <Karim.benrezzag@corexiom.com>
-SPDX-License-Identifier: Apache-2.0
--->
-
 # Corexiom v2 — Reasoning Core
 
 A redesign of the core based on two principles: **hybridize** (a neural module
@@ -18,6 +13,31 @@ populates the graph, while the symbolic core verifies and decides) and
 > It reasons over explicit assertions, makes its contradictions visible,
 > **suspends** judgment according to clear criteria, and **traces** every
 > conclusion it reaches.
+
+## Architecture at a glance
+
+Corexiom sits **above** an existing AI system. The AI proposes beliefs and
+axioms; Corexiom checks their coherence and returns a **typed verdict** —
+either a traced **decision** or an explicit **suspension** with a structural
+reason.
+
+```mermaid
+flowchart TD
+    A[Natural language / context]
+    B[AI system<br/><i>proposes beliefs + axioms</i>]
+    C[<b>COREXIOM</b><br/>symbolic verification kernel<br/><i>coherence · propagation · verdict</i>]
+    D[<b>Decision</b><br/>traced]
+    E[<b>Suspension</b><br/>typed reason]
+
+    A --> B
+    B --> C
+    C --> D
+    C --> E
+
+    style C fill:#f0f7ff,stroke:#2563eb,stroke-width:2px
+    style D fill:#f0fdf4,stroke:#16a34a
+    style E fill:#fef3c7,stroke:#d97706
+```
 
 ## Why v2
 
