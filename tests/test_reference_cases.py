@@ -1,29 +1,29 @@
 # Copyright 2026 Karim Benrezzag <Karim.benrezzag@corexiom.com>
 # SPDX-License-Identifier: Apache-2.0
 """
-Cas de référence sémantique — Couche A (spécification / régression).
+Semantic reference cases — Layer A (specification / regression).
 
-PORTÉE ET HONNÊTETÉ. Ce fichier n'est PAS une « vérité terrain ». Les verdicts
-attendus découlent du *principe de conception* du noyau (« suspendre plutôt
-qu'halluciner ») sur des motifs de raisonnement volontairement génériques :
-chaque cas est construit pour que la bonne réponse soit évidente par le
-raisonnement, pas par la lecture du code de `decide()`. C'est donc une suite de
-spécification : elle fixe le comportement attendu et protège contre les
-régressions. La validation métier (sources externes) relève d'une couche B
-distincte et clairement nommée.
+SCOPE AND HONESTY. This file is NOT a "ground truth". The expected verdicts
+follow from the kernel's *design principle* ("suspend rather than hallucinate")
+applied to deliberately generic reasoning patterns: each case is built so that
+the right answer is obvious from reasoning, not from reading the code of
+`decide()`. This is therefore a specification suite: it fixes the expected
+behaviour and protects against regressions. Domain validation (external
+sources) belongs to a distinct, clearly named Layer B.
 
-Conventions d'assertion (volontairement souples, pour ne pas être fragiles) :
-  - on vérifie le VERDICT,
-  - les ASSERTIONS qui doivent figurer dans la justification (la « preuve »),
-  - la confiance UNIQUEMENT relativement au seuil (au-dessus / nulle), jamais
-    un nombre exact (qui dépend de G⁺/G⁻/λ et changerait au moindre réglage).
+Assertion conventions (deliberately loose, to avoid brittleness):
+  - we check the VERDICT,
+  - the ASSERTIONS that must appear in the justification (the "proof"),
+  - confidence ONLY relative to the threshold (above / zero), never an
+    exact number (which depends on G⁺/G⁻/λ and would change at the slightest
+    tweak).
 
-Un motif par verdict :
-  C1 DECIDED                    — une action permise, bien soutenue, sans conflit
-  C2 INSUFFICIENT_BELIEF        — la seule option est trop faible pour agir
-  C3 SUSPENDED_AMBIGUOUS        — deux options permises quasi ex æquo
-  C4 SUSPENDED_AXIOM_CONFLICT   — le socle d'axiomes est contradictoire
-  C5 SUSPENDED_VIOLATES_AXIOM   — la seule action sérieuse violerait un axiome
+One pattern per verdict:
+  C1 DECIDED                    — a permitted action, well supported, no conflict
+  C2 INSUFFICIENT_BELIEF        — the only option is too weak to act on
+  C3 SUSPENDED_AMBIGUOUS        — two permitted options in a near-tie
+  C4 SUSPENDED_AXIOM_CONFLICT   — the axiom foundation is contradictory
+  C5 SUSPENDED_VIOLATES_AXIOM   — the only serious action would violate an axiom
 """
 
 import os
@@ -50,21 +50,21 @@ def _engine(asserts, links):
 # --------------------------------------------------------------------------- #
 def test_C1_decided_supported_action():
     """
-    Motif : décision fondée.
-    Raisonnement attendu (indépendant du code) — il existe UNE action permise,
-    fortement soutenue par une évidence solide, et aucun axiome ne s'y oppose.
-    Un décideur prudent DOIT alors trancher : refuser ici serait de la paralysie,
-    pas de la prudence. Verdict attendu : DECIDED, avec l'évidence dans la preuve.
+    Pattern: grounded decision.
+    Expected reasoning (independent of the code) — there is ONE permitted
+    action, strongly supported by solid evidence, and no axiom opposes it. A
+    cautious decider MUST then decide: refusing here would be paralysis, not
+    prudence. Expected verdict: DECIDED, with the evidence in the proof.
     """
     e = _engine(
-        [Assertion("evidence_strong", "évidence solide", Status.BELIEF, prior=0.9),
-         Assertion("action_proceed", "action permise", Status.BELIEF, prior=0.3, actionable=True)],
+        [Assertion("evidence_strong", "solid evidence", Status.BELIEF, prior=0.9),
+         Assertion("action_proceed", "permitted action", Status.BELIEF, prior=0.3, actionable=True)],
         [Link("evidence_strong", "action_proceed", Relation.IMPLIES, 0.9)],
     )
     d = e.decide(threshold=0.5)
     assert d.verdict is Verdict.DECIDED
     assert d.target == "action_proceed"
-    assert d.confidence >= 0.5                       # au-dessus du seuil (pas un nombre exact)
+    assert d.confidence >= 0.5                       # above threshold (not an exact number)
     assert {"action_proceed", "evidence_strong"} <= set(d.justification.assertions)
 
 
@@ -73,13 +73,14 @@ def test_C1_decided_supported_action():
 # --------------------------------------------------------------------------- #
 def test_C2_insufficient_belief():
     """
-    Motif : insuffisance de croyance.
-    Raisonnement attendu — la seule option actionnable a une croyance trop faible
-    et rien ne vient l'étayer. Forcer une décision serait infondé. Le système doit
-    s'abstenir explicitement. Verdict attendu : INSUFFICIENT_BELIEF, sans cible.
+    Pattern: insufficient belief.
+    Expected reasoning — the only actionable option has too low a belief and
+    nothing comes to support it. Forcing a decision would be unfounded. The
+    system must explicitly abstain. Expected verdict: INSUFFICIENT_BELIEF,
+    with no target.
     """
     e = _engine(
-        [Assertion("action_weak", "action peu étayée", Status.BELIEF, prior=0.2, actionable=True)],
+        [Assertion("action_weak", "poorly supported action", Status.BELIEF, prior=0.2, actionable=True)],
         [],
     )
     d = e.decide(threshold=0.6)
@@ -92,11 +93,11 @@ def test_C2_insufficient_belief():
 # --------------------------------------------------------------------------- #
 def test_C3_ambiguous_near_tie():
     """
-    Motif : ambiguïté.
-    Raisonnement attendu — deux actions permises sont au-dessus du seuil et
-    statistiquement indiscernables (écart < marge). Trancher reviendrait à
-    inventer une préférence arbitraire. Le système doit suspendre et nommer les
-    deux options. Verdict attendu : SUSPENDED_AMBIGUOUS, les deux dans la preuve.
+    Pattern: ambiguity.
+    Expected reasoning — two permitted actions are above the threshold and
+    statistically indistinguishable (gap < margin). Picking one would amount
+    to inventing an arbitrary preference. The system must suspend and name
+    both options. Expected verdict: SUSPENDED_AMBIGUOUS, both in the proof.
     """
     e = _engine(
         [Assertion("option_A", "option A", Status.BELIEF, prior=0.80, actionable=True),
@@ -113,15 +114,15 @@ def test_C3_ambiguous_near_tie():
 # --------------------------------------------------------------------------- #
 def test_C4_axiom_conflict():
     """
-    Motif : socle incohérent.
-    Raisonnement attendu — deux axiomes (inviolables) se contredisent directement.
-    Aucune décision ne peut reposer sur un fondement lui-même contradictoire : le
-    problème est en amont de toute action. Verdict attendu : SUSPENDED_AXIOM_CONFLICT,
-    les deux axiomes dans la preuve.
+    Pattern: contradictory foundation.
+    Expected reasoning — two axioms (inviolable) directly contradict each
+    other. No decision can rest on a foundation that is itself contradictory:
+    the problem is upstream of any action. Expected verdict:
+    SUSPENDED_AXIOM_CONFLICT, with both axioms in the proof.
     """
     e = _engine(
-        [Assertion("rule_1", "règle 1", Status.AXIOM),
-         Assertion("rule_2", "règle 2", Status.AXIOM)],
+        [Assertion("rule_1", "rule 1", Status.AXIOM),
+         Assertion("rule_2", "rule 2", Status.AXIOM)],
         [Link("rule_1", "rule_2", Relation.CONTRADICTS, 1.0)],
     )
     d = e.decide()
@@ -134,16 +135,16 @@ def test_C4_axiom_conflict():
 # --------------------------------------------------------------------------- #
 def test_C5_violates_axiom():
     """
-    Motif : la seule action sérieuse violerait un axiome.
-    Raisonnement attendu — l'action la plus crédible est en contradiction directe
-    avec une règle inviolable, et il n'existe aucune alternative permise. Agir
-    violerait l'axiome ; le système doit refuser et le dire (plutôt que de
-    renvoyer une simple insuffisance). Verdict attendu : SUSPENDED_VIOLATES_AXIOM,
-    avec l'action et l'axiome dans la preuve.
+    Pattern: the only serious action would violate an axiom.
+    Expected reasoning — the most credible action directly contradicts an
+    inviolable rule, and no permitted alternative exists. Acting would
+    violate the axiom; the system must refuse and say so (rather than
+    returning a mere insufficiency). Expected verdict:
+    SUSPENDED_VIOLATES_AXIOM, with the action and the axiom in the proof.
     """
     e = _engine(
-        [Assertion("rule", "règle inviolable", Status.AXIOM),
-         Assertion("action_fast", "action rapide mais interdite", Status.BELIEF, prior=0.9, actionable=True)],
+        [Assertion("rule", "inviolable rule", Status.AXIOM),
+         Assertion("action_fast", "fast but forbidden action", Status.BELIEF, prior=0.9, actionable=True)],
         [Link("action_fast", "rule", Relation.CONTRADICTS, 1.0)],
     )
     d = e.decide(threshold=0.5)
@@ -152,7 +153,7 @@ def test_C5_violates_axiom():
 
 
 # --------------------------------------------------------------------------- #
-# Exécution directe : tableau récapitulatif lisible
+# Direct execution: readable recap table
 # --------------------------------------------------------------------------- #
 if __name__ == "__main__":
     cases = [
@@ -176,9 +177,9 @@ if __name__ == "__main__":
           Assertion("action_fast", "a", Status.BELIEF, prior=0.9, actionable=True)],
          [Link("action_fast", "rule", Relation.CONTRADICTS, 1.0)], dict(threshold=0.5)),
     ]
-    print(f"{'Cas':<20}{'Verdict obtenu':<32}{'Confiance':<10}Preuve")
+    print(f"{'Case':<20}{'Observed verdict':<32}{'Confidence':<12}Proof")
     print("-" * 88)
     for name, asserts, links, kw in cases:
         d = _engine(asserts, links).decide(**kw)
-        preuve = ", ".join(d.justification.assertions) or "—"
-        print(f"{name:<20}{d.verdict.value:<32}{d.confidence:<10.3f}{preuve}")
+        proof = ", ".join(d.justification.assertions) or "—"
+        print(f"{name:<20}{d.verdict.value:<32}{d.confidence:<12.3f}{proof}")

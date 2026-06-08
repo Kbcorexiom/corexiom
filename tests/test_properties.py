@@ -1,22 +1,22 @@
 # Copyright 2026 Karim Benrezzag <Karim.benrezzag@corexiom.com>
 # SPDX-License-Identifier: Apache-2.0
 """
-Tests de propriété (property-based) et adversariaux.
+Property-based and adversarial tests.
 
-On NE teste pas des exemples choisis : on laisse `hypothesis` GÉNÉRER des
-milliers de graphes (assertions + liens) et on vérifie que les invariants
-annoncés dans DESIGN.md tiennent sur TOUS. C'est la démonstration empirique de
-robustesse — le plus proche honnête d'« incassable ».
+We do NOT test cherry-picked examples: we let `hypothesis` GENERATE thousands
+of graphs (assertions + links) and check that the invariants declared in
+DESIGN.md hold on ALL of them. This is the empirical demonstration of
+robustness — the closest honest approximation to "unbreakable".
 
-Invariants vérifiés :
-  P1  bornes        : toutes les croyances restent dans [0, 1]
-  P2  axiomes       : un axiome reste à 1.0
-  P3  déterminisme  : deux exécutions donnent le même résultat
-  P4  ordre         : l'ordre d'insertion des nœuds ET des liens ne change rien
-  P5  terminaison   : la propagation s'arrête toujours (<= max_iters)
-  P6  point fixe    : à l'arrêt, réappliquer l'opérateur déplace de < epsilon
-  P7  cohérence     : le score de cohérence est dans [0, 1]
-  P8  décision      : decide() renvoie toujours un verdict valide et borné
+Invariants checked:
+  P1  bounds       : all beliefs stay in [0, 1]
+  P2  axioms       : an axiom stays at 1.0
+  P3  determinism  : two runs yield the same result
+  P4  order        : insertion order of nodes AND links changes nothing
+  P5  termination  : propagation always halts (<= max_iters)
+  P6  fixed point  : at halt, reapplying the operator moves by < epsilon
+  P7  coherence    : the coherence score is in [0, 1]
+  P8  decision     : decide() always returns a valid, bounded verdict
 """
 
 import os
@@ -32,7 +32,7 @@ from corexiom import (  # noqa: E402
 from corexiom.engine import ReasoningEngine as _Engine  # noqa: E402
 
 
-# --- Stratégie : génère un graphe aléatoire (assertions + liens) ------------ #
+# --- Strategy: generate a random graph (assertions + links) ---------------- #
 N_MAX = 8
 
 @st.composite
@@ -106,8 +106,8 @@ def test_P4_order_independent(graph, rnd):
     shuffled_links = list(links)
     rnd.shuffle(shuffled_links)
     b1 = build(asserts, links).propagate().belief
-    # Mise à jour synchrone => résultat indépendant de l'ordre d'insertion,
-    # qu'on mélange les NŒUDS ou les LIENS (la sommation flottante reste stable).
+    # Synchronous update => result independent of insertion order, whether
+    # NODES or LINKS are shuffled (floating-point summation stays stable).
     b2 = build(shuffled_asserts, shuffled_links).propagate().belief
     for k in b1:
         assert abs(b1[k] - b2[k]) < 1e-12
@@ -119,7 +119,7 @@ def test_P5_termination(graph):
     asserts, links = graph
     e = build(asserts, links, max_iters=2000)
     res = e.propagate()
-    assert res.iterations <= 2000  # terminaison garantie
+    assert res.iterations <= 2000  # guaranteed termination
 
 
 @settings(max_examples=400, deadline=None)
@@ -129,7 +129,7 @@ def test_P6_fixed_point_at_stop(graph):
     e = build(asserts, links, max_iters=5000, epsilon=1e-9)
     res = e.propagate()
     if res.converged:
-        # Réappliquer l'opérateur une fois ne doit (quasi) rien changer.
+        # Reapplying the operator once must (almost) not change anything.
         again, delta = e._step(res.belief)
         assert delta < 1e-6
 
@@ -151,14 +151,14 @@ def test_P8_decision_always_valid(graph):
     d = e.decide(threshold=0.6, margin=0.05)
     assert isinstance(d.verdict, Verdict)
     assert 0.0 <= d.confidence <= 1.0
-    # Si DECIDED, la cible est actionnable, autorisée, et au-dessus du seuil.
+    # If DECIDED, the target is actionable, permitted, and above threshold.
     if d.verdict is Verdict.DECIDED:
         assert d.target is not None
         assert e.assertions[d.target].actionable
         assert d.confidence >= 0.6
 
 
-# --- Tests adversariaux ciblés --------------------------------------------- #
+# --- Targeted adversarial tests -------------------------------------------- #
 def test_empty_graph():
     e = ReasoningEngine()
     res = e.propagate()
@@ -168,7 +168,7 @@ def test_empty_graph():
 
 
 def test_cycle_converges():
-    # Cycle d'implications : ne doit pas diverger ni boucler à l'infini.
+    # Implication cycle: must neither diverge nor loop forever.
     e = ReasoningEngine(max_iters=5000)
     for i in range(5):
         e.add(Assertion(f"c{i}", f"c{i}", Status.BELIEF, prior=0.5))
@@ -180,7 +180,7 @@ def test_cycle_converges():
 
 
 def test_self_reinforcing_capped():
-    # Boucle de renforcement mutuel : les croyances doivent rester <= 1.0.
+    # Mutual reinforcement loop: beliefs must stay <= 1.0.
     e = ReasoningEngine()
     e.add(Assertion("x", "x", Status.BELIEF, prior=0.9))
     e.add(Assertion("y", "y", Status.BELIEF, prior=0.9))
@@ -191,7 +191,7 @@ def test_self_reinforcing_capped():
 
 
 def test_many_contradictions_stay_bounded():
-    # Beaucoup de contradictions : croyances bornées, cohérence dans [0,1].
+    # Many contradictions: beliefs bounded, coherence in [0,1].
     e = ReasoningEngine()
     for i in range(10):
         e.add(Assertion(f"p{i}", f"p{i}", Status.BELIEF, prior=0.8))

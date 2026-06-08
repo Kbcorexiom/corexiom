@@ -1,12 +1,12 @@
 # Copyright 2026 Karim Benrezzag <Karim.benrezzag@corexiom.com>
 # SPDX-License-Identifier: Apache-2.0
 """
-Corexiom v2 — Modèle de données.
+Corexiom v2 — Data model.
 
-Structures de base du noyau de raisonnement : assertions (nœuds), liens (arcs)
-et objets de justification (preuves traçables). Les valeurs numériques sont
-systématiquement bornées à [0, 1] dès la construction, pour qu'aucun état
-invalide ne puisse exister dans le graphe.
+Core data structures of the reasoning kernel: assertions (nodes), links (edges)
+and justification objects (traceable proofs). Numerical values are
+systematically clamped to [0, 1] at construction time, so that no invalid
+state can ever exist in the graph.
 """
 
 from __future__ import annotations
@@ -17,9 +17,9 @@ from typing import List
 
 
 def clamp01(x: float) -> float:
-    """Borne une valeur dans [0, 1]. Garantit l'invariant fondamental du modèle."""
+    """Clamp a value to [0, 1]. Enforces the model's fundamental invariant."""
     if x != x:  # NaN
-        raise ValueError("Valeur NaN interdite pour une croyance.")
+        raise ValueError("NaN value is not allowed for a belief.")
     if x < 0.0:
         return 0.0
     if x > 1.0:
@@ -28,31 +28,31 @@ def clamp01(x: float) -> float:
 
 
 class Status(Enum):
-    """Statut d'une assertion."""
-    AXIOM = "axiom"     # croyance verrouillée à 1.0, inviolable (contrainte dure)
-    BELIEF = "belief"   # croyance révisable dans [0, 1]
+    """Status of an assertion."""
+    AXIOM = "axiom"     # belief locked at 1.0, inviolable (hard constraint)
+    BELIEF = "belief"   # revisable belief in [0, 1]
 
 
 class Relation(Enum):
-    """Type de lien orienté entre deux assertions."""
-    IMPLIES = "implies"          # a → b : si a, alors b
-    SUPPORTS = "supports"        # a → b : a est une évidence (plus faible) pour b
-    CONTRADICTS = "contradicts"  # a, b mutuellement exclusifs (symétrique)
+    """Type of directed link between two assertions."""
+    IMPLIES = "implies"          # a -> b: if a, then b
+    SUPPORTS = "supports"        # a -> b: a is (weaker) evidence for b
+    CONTRADICTS = "contradicts"  # a, b mutually exclusive (symmetric)
 
 
 @dataclass(frozen=True)
 class Assertion:
     """
-    Un nœud du graphe.
+    A node in the graph.
 
-    - `id`      : identifiant stable (fourni par l'appelant ou généré).
-    - `content` : description formelle (pas du langage naturel).
-    - `status`  : AXIOM (verrouillé à 1.0) ou BELIEF (révisable).
-    - `prior`   : a priori de croyance dans [0, 1] (1.0 pour un axiome).
-    - `actionable` : True si l'assertion peut être choisie comme décision.
+    - `id`         : stable identifier (provided by caller or generated).
+    - `content`    : formal description (not natural language).
+    - `status`     : AXIOM (locked at 1.0) or BELIEF (revisable).
+    - `prior`      : prior belief in [0, 1] (1.0 for an axiom).
+    - `actionable` : True if the assertion can be selected as a decision.
 
-    Immuable : toute évolution de croyance se fait dans l'état du moteur, pas
-    dans l'assertion elle-même (séparation données / état de calcul).
+    Immutable: any belief evolution happens in the engine's state, not in the
+    assertion itself (separation of data from computation state).
     """
     id: str
     content: str
@@ -64,7 +64,7 @@ class Assertion:
         object.__setattr__(self, "prior",
                            1.0 if self.status is Status.AXIOM else clamp01(self.prior))
         if not self.id:
-            raise ValueError("Une assertion doit avoir un id non vide.")
+            raise ValueError("An assertion must have a non-empty id.")
 
     @property
     def is_axiom(self) -> bool:
@@ -74,10 +74,10 @@ class Assertion:
 @dataclass(frozen=True)
 class Link:
     """
-    Un arc orienté typé et pondéré entre deux assertions (par id).
+    A typed, weighted directed edge between two assertions (by id).
 
-    `weight ∈ [0, 1]` : force du lien. Pour CONTRADICTS, l'orientation n'a pas
-    de sens (relation symétrique), mais on conserve src/dst pour l'affichage.
+    `weight in [0, 1]`: link strength. For CONTRADICTS, orientation has no
+    meaning (symmetric relation), but src/dst are kept for display purposes.
     """
     src: str
     dst: str
@@ -87,20 +87,20 @@ class Link:
     def __post_init__(self):
         object.__setattr__(self, "weight", clamp01(self.weight))
         if self.src == self.dst:
-            raise ValueError("Un lien ne peut relier une assertion à elle-même.")
+            raise ValueError("A link cannot connect an assertion to itself.")
 
 
 @dataclass(frozen=True)
 class Conflict:
-    """Une contradiction détectée, avec sa sévérité et sa justification."""
+    """A detected contradiction, with its severity and justification."""
     a: str
     b: str
     severity: float
-    hard: bool  # True si conflit entre deux axiomes (incohérence dure)
+    hard: bool  # True if conflict between two axioms (hard incoherence)
 
 
 class Verdict(Enum):
-    """Issue d'une décision."""
+    """Outcome of a decision."""
     DECIDED = "decided"
     SUSPENDED_AXIOM_CONFLICT = "suspended_axiom_conflict"
     SUSPENDED_VIOLATES_AXIOM = "suspended_violates_axiom"
@@ -111,10 +111,10 @@ class Verdict(Enum):
 @dataclass(frozen=True)
 class Justification:
     """
-    Preuve traçable accompagnant une conclusion (décision, suspension, conflit).
+    Traceable proof attached to a conclusion (decision, suspension, conflict).
 
-    - `assertions` / `links` : les éléments du graphe qui fondent la conclusion.
-    - `explanation`          : résumé lisible par un humain.
+    - `assertions` / `links` : graph elements grounding the conclusion.
+    - `explanation`          : human-readable summary.
     """
     assertions: List[str] = field(default_factory=list)
     links: List[Link] = field(default_factory=list)
@@ -123,7 +123,7 @@ class Justification:
 
 @dataclass(frozen=True)
 class Decision:
-    """Résultat complet d'une décision : verdict, cible éventuelle, preuve."""
+    """Full decision result: verdict, optional target, proof."""
     verdict: Verdict
     target: str | None
     confidence: float

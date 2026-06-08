@@ -2,12 +2,12 @@
 # Copyright 2026 Karim Benrezzag <Karim.benrezzag@corexiom.com>
 # SPDX-License-Identifier: Apache-2.0
 """
-Corexiom v2 — Démonstration de bout en bout.
+Corexiom v2 — End-to-end demonstration.
 
-Montre le flux hybride complet :
-    texte  →  perception (enfichable)  →  graphe  →  raisonnement  →  verdict tracé
+Shows the full hybrid flow:
+    text  →  perception (pluggable)  →  graph  →  reasoning  →  traced verdict
 
-Lancement :  python demo.py
+Run:  python demo.py
 """
 
 from corexiom import (
@@ -23,63 +23,63 @@ def banner(t):
 def show_decision(d):
     print(f"  Verdict     : {d.verdict.value}")
     if d.target:
-        print(f"  Cible       : {d.target}  (confiance {d.confidence:.3f})")
-    print(f"  Explication : {d.justification.explanation}")
+        print(f"  Target      : {d.target}  (confidence {d.confidence:.3f})")
+    print(f"  Explanation : {d.justification.explanation}")
     if d.justification.assertions:
-        print(f"  Preuve      : {', '.join(d.justification.assertions)}")
+        print(f"  Proof       : {', '.join(d.justification.assertions)}")
 
 
 def scenario_negotiation():
-    banner("Scénario 1 — Négociation : l'action proposée viole un axiome")
+    banner("Scenario 1 — Negotiation: the proposed action violates an axiom")
     e = ReasoningEngine()
-    e.add(Assertion("min_price", "ne jamais vendre sous 100", Status.AXIOM))
-    e.add(Assertion("offer80", "le client offre 80", Status.BELIEF, prior=0.9))
-    e.add(Assertion("sell80", "vendre à 80", Status.BELIEF, prior=0.8, actionable=True))
+    e.add(Assertion("min_price", "never sell below 100", Status.AXIOM))
+    e.add(Assertion("offer80", "customer offers 80", Status.BELIEF, prior=0.9))
+    e.add(Assertion("sell80", "sell at 80", Status.BELIEF, prior=0.8, actionable=True))
     e.link(Link("offer80", "sell80", Relation.SUPPORTS, 0.6))
     e.link(Link("sell80", "min_price", Relation.CONTRADICTS, 1.0))
 
     res = e.propagate()
-    print(f"  Cohérence   : {e.coherence(res.belief):.3f}  "
-          f"(convergé en {res.iterations} itérations)")
+    print(f"  Coherence   : {e.coherence(res.belief):.3f}  "
+          f"(converged in {res.iterations} iterations)")
     show_decision(e.decide(threshold=0.5))
-    print("  → Le système SUSPEND plutôt que de violer l'axiome.")
+    print("  → The system SUSPENDS rather than violating the axiom.")
 
 
 def scenario_decision():
-    banner("Scénario 2 — Décision fondée et tracée")
+    banner("Scenario 2 — Grounded and traced decision")
     e = ReasoningEngine()
-    e.add(Assertion("low_stock", "stock faible", Status.BELIEF, prior=0.95))
-    e.add(Assertion("supplier_ok", "fournisseur disponible", Status.BELIEF, prior=0.9))
-    e.add(Assertion("reorder", "passer commande", Status.BELIEF, prior=0.4, actionable=True))
+    e.add(Assertion("low_stock", "low stock", Status.BELIEF, prior=0.95))
+    e.add(Assertion("supplier_ok", "supplier available", Status.BELIEF, prior=0.9))
+    e.add(Assertion("reorder", "place order", Status.BELIEF, prior=0.4, actionable=True))
     e.link(Link("low_stock", "reorder", Relation.IMPLIES, 0.9))
     e.link(Link("supplier_ok", "reorder", Relation.SUPPORTS, 0.7))
     show_decision(e.decide(threshold=0.5))
-    print("  → Décision soutenue par des évidences explicites.")
+    print("  → Decision supported by explicit evidence.")
 
 
 def scenario_axiom_conflict():
-    banner("Scénario 3 — Socle incohérent : deux axiomes se contredisent")
+    banner("Scenario 3 — Contradictory foundation: two axioms conflict")
     e = ReasoningEngine()
-    e.add(Assertion("fast", "toujours livrer le jour même", Status.AXIOM))
-    e.add(Assertion("careful", "ne jamais livrer le jour même", Status.AXIOM))
+    e.add(Assertion("fast", "always deliver same day", Status.AXIOM))
+    e.add(Assertion("careful", "never deliver same day", Status.AXIOM))
     e.link(Link("fast", "careful", Relation.CONTRADICTS, 1.0))
     show_decision(e.decide())
-    print("  → Aucune décision sur un socle d'axiomes contradictoire.")
+    print("  → No decision on a contradictory axiom foundation.")
 
 
 def scenario_hybrid_perception():
-    banner("Scénario 4 — Perception enfichable (le neuronal peuplerait le graphe)")
-    text = ("AXIOME: ne jamais vendre sous le prix minimum. "
-            "Le client propose un prix bas. "
-            "Décision: accepter l'offre.")
-    perceiver = RuleBasedPerceiver()   # remplaçable par un LLMPerceiver
+    banner("Scenario 4 — Pluggable perception (the neural side would populate the graph)")
+    text = ("AXIOM: never sell below the minimum price. "
+            "The customer proposes a low price. "
+            "Decision: accept the offer.")
+    perceiver = RuleBasedPerceiver()   # interchangeable with an LLMPerceiver
     parsed = perceiver.perceive(text)
-    print(f"  Texte perçu en {len(parsed)} assertion(s) :")
+    print(f"  Text parsed into {len(parsed)} assertion(s):")
     for p in parsed:
-        tag = "AXIOME" if p.status is Status.AXIOM else ("ACTION" if p.actionable else "fait")
+        tag = "AXIOM" if p.status is Status.AXIOM else ("ACTION" if p.actionable else "fact")
         print(f"    [{tag:6}] {p.content}  (prior {p.prior:.2f})")
-    print("  → Même flux : un LLMPerceiver produirait ces assertions ; le moteur, lui,")
-    print("    reste maître de la cohérence et peut suspendre quoi qu'il arrive.")
+    print("  → Same flow: an LLMPerceiver would produce these assertions; the engine,")
+    print("    however, remains in charge of coherence and may suspend regardless.")
 
 
 if __name__ == "__main__":

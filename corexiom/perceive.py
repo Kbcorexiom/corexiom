@@ -1,18 +1,18 @@
 # Copyright 2026 Karim Benrezzag <Karim.benrezzag@corexiom.com>
 # SPDX-License-Identifier: Apache-2.0
 """
-Corexiom v2 — Perception enfichable.
+Corexiom v2 — Pluggable perception.
 
-La perception transforme du langage naturel en assertions structurées. Elle est
-**découplée** du moteur : le moteur raisonne sur des assertions, peu importe qui
-les produit. C'est le point d'hybridation :
+Perception turns natural language into structured assertions. It is
+**decoupled** from the engine: the engine reasons over assertions regardless
+of who produces them. This is the hybridization point:
 
-    le neuronal PEUPLE le graphe  →  le symbolique VÉRIFIE et tranche.
+    the neural side POPULATES the graph  ->  the symbolic side VERIFIES and decides.
 
-Deux implémentations :
-- `RuleBasedPerceiver` : extraction par motifs, sans dépendance (par défaut).
-- `LLMPerceiver`       : interface pour un modèle de langage (le grounding
-  sérieux). Aucun appel réseau n'est codé en dur : on injecte un client.
+Two implementations:
+- `RuleBasedPerceiver`: pattern-based extraction, no dependencies (default).
+- `LLMPerceiver`      : interface for a language model (serious grounding).
+  No network call is hard-coded: a client is injected.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from .model import Assertion, Status
 
 @dataclass(frozen=True)
 class ParsedAssertion:
-    """Assertion candidate produite par la perception, avant insertion."""
+    """Candidate assertion produced by perception, before insertion."""
     content: str
     status: Status
     prior: float
@@ -42,22 +42,23 @@ class ParsedAssertion:
 
 
 class Perceiver(Protocol):
-    """Contrat de perception : du texte vers des assertions candidates."""
+    """Perception contract: from text to candidate assertions."""
     def perceive(self, text: str) -> List[ParsedAssertion]: ...
 
 
 class RuleBasedPerceiver:
     """
-    Perception par motifs. Volontairement simple et transparente : c'est un
-    point de départ sans dépendance, PAS un système de compréhension. Pour un
-    grounding réel, utiliser `LLMPerceiver`.
+    Pattern-based perception. Deliberately simple and transparent: a starting
+    point with no dependencies, NOT an understanding system. For real
+    grounding, use `LLMPerceiver`.
 
-    Conventions reconnues (insensibles à la casse) :
-    - 'axiome:' / 'axiom:'      -> AXIOM (inviolable)
-    - 'décision:' / 'action:'   -> BELIEF actionnable
-    - 'si ... alors ...'        -> BELIEF (règle), prior modéré
-    - 'peut-être' / 'hypothèse' -> BELIEF, prior faible
-    - sinon                     -> BELIEF (fait), prior élevé
+    Recognized conventions (case-insensitive, English and French supported):
+    - 'axiom:' / 'axiome:'                            -> AXIOM (inviolable)
+    - 'decision:' / 'action:' / 'décision:'           -> BELIEF actionable
+    - 'if ... then ...' / 'si ... alors ...'          -> BELIEF (rule), moderate prior
+    - 'maybe' / 'perhaps' / 'hypothesis' / 'peut-être' / 'hypothèse'
+                                                      -> BELIEF, low prior
+    - otherwise                                       -> BELIEF (fact), high prior
     """
 
     def perceive(self, text: str) -> List[ParsedAssertion]:
@@ -67,44 +68,48 @@ class RuleBasedPerceiver:
             if not line:
                 continue
             low = line.lower()
-            if low.startswith(("axiome:", "axiom:")):
+            if low.startswith(("axiom:", "axiome:")):
                 content = line.split(":", 1)[1].strip()
                 out.append(ParsedAssertion(content, Status.AXIOM, 1.0, False))
-            elif low.startswith(("décision:", "decision:", "action:")):
+            elif low.startswith(("decision:", "action:", "décision:")):
                 content = line.split(":", 1)[1].strip()
                 out.append(ParsedAssertion(content, Status.BELIEF, 0.6, True))
-            elif "alors" in low or low.startswith("si "):
+            elif (" then " in low or "alors" in low
+                  or low.startswith(("if ", "si "))):
                 out.append(ParsedAssertion(line, Status.BELIEF, 0.5, False))
-            elif low.startswith(("peut-être", "peut etre", "hypothèse", "hypothese")):
+            elif low.startswith(("maybe", "perhaps", "hypothesis",
+                                 "peut-être", "peut etre",
+                                 "hypothèse", "hypothese")):
                 out.append(ParsedAssertion(line, Status.BELIEF, 0.3, False))
             else:
                 out.append(ParsedAssertion(line, Status.BELIEF, 0.7, False))
         return out
 
 
-# Un client LLM est simplement une fonction : prompt -> texte de réponse.
+# An LLM client is simply a function: prompt -> response text.
 LLMClient = Callable[[str], str]
 
-_LLM_SYSTEM_PROMPT = """Tu extrais des assertions structurées d'un texte.
-Réponds UNIQUEMENT par un tableau JSON d'objets ayant les clés :
-  "content"    (str, description formelle et concise),
-  "status"     ("axiom" si règle inviolable, sinon "belief"),
-  "prior"      (float dans [0,1], confiance initiale),
-  "actionable" (bool, true si c'est une décision/action possible).
-Aucun texte hors du JSON."""
+_LLM_SYSTEM_PROMPT = """You extract structured assertions from a text.
+Reply ONLY with a JSON array of objects with the following keys:
+  "content"    (str, formal and concise description),
+  "status"     ("axiom" if inviolable rule, otherwise "belief"),
+  "prior"      (float in [0,1], initial confidence),
+  "actionable" (bool, true if this is a possible decision/action).
+No text outside the JSON."""
 
 
 class LLMPerceiver:
     """
-    Perception par modèle de langage : le neuronal peuple le graphe.
+    Perception via a language model: the neural side populates the graph.
 
-    On injecte un `client` (fonction `prompt -> réponse`). Le moteur reste
-    maître de la cohérence : il vérifie et peut suspendre, quelle que soit la
-    sortie du modèle. La sortie est validée et bornée avant insertion ; toute
-    réponse mal formée est ignorée plutôt que de corrompre le graphe.
+    A `client` (a `prompt -> response` function) is injected. The engine
+    remains in charge of coherence: it verifies and may suspend, regardless
+    of the model's output. The output is validated and clamped before
+    insertion; any malformed response is ignored rather than corrupting the
+    graph.
 
-    Exemple d'intégration (pseudo-code) :
-        def client(prompt): return mon_appel_api(prompt)
+    Integration example (pseudo-code):
+        def client(prompt): return my_api_call(prompt)
         perceiver = LLMPerceiver(client)
     """
 
@@ -113,12 +118,12 @@ class LLMPerceiver:
         self._system_prompt = system_prompt
 
     def perceive(self, text: str) -> List[ParsedAssertion]:
-        prompt = f"{self._system_prompt}\n\nTexte :\n{text}"
+        prompt = f"{self._system_prompt}\n\nText:\n{text}"
         raw = self._client(prompt)
         try:
             data = json.loads(raw)
         except (json.JSONDecodeError, TypeError):
-            return []  # réponse non exploitable : on n'insère rien
+            return []  # unusable response: nothing is inserted
         if not isinstance(data, list):
             return []
         out: List[ParsedAssertion] = []
