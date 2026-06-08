@@ -1,0 +1,4 @@
+# Dépendances de développement de Corexiom v2 (le noyau lui-même n'a AUCUNE
+# dépendance : Python pur, bibliothèque standard uniquement).
+pytest>=7.0       # tests unitaires et adversariaux
+hypothesis>=6.0   # tests de propriété (génération de graphes aléatoires)
