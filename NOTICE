@@ -8,12 +8,10 @@ Distribué sous licence Apache 2.0. Voir le fichier LICENSE pour les termes
 complets.
 
 ----------------------------------------------------------------------
-Dépendances tierces (chacune sous sa propre licence) :
-  - PyO3            (Apache-2.0 / MIT)
-  - uuid (Rust)     (Apache-2.0 / MIT)
-  - serde           (Apache-2.0 / MIT)
-  - parking_lot     (Apache-2.0 / MIT)
-  - maturin         (Apache-2.0 / MIT)
-  - PyJulia         (MIT)
-Les langages Rust, Julia et Python ainsi que leurs bibliothèques standard
-restent la propriété de leurs auteurs respectifs.
+
+Dépendances de développement (chacune sous sa propre licence) :
+  - pytest      (MIT)
+  - hypothesis  (MPL-2.0)
+
+Le langage Python et sa bibliothèque standard restent la propriété de
+leurs auteurs respectifs.
